@@ -94,4 +94,47 @@ router.get("/:id", validate(getUserSchema), async (req: Request, res: Response) 
     }
 });
 
+// GET /users/:id/posts - Get posts by user (public)
+router.get("/:id/posts", validate(getUserSchema), async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id);
+
+        // First check if user exists
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, name: true }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                error: 'User not found'
+            });
+        }
+
+        const posts = await prisma.post.findMany({
+            where: { authorId: userId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
+            }
+        });
+
+        res.json({
+            user,
+            posts,
+            count: posts.length
+        });
+    } catch (error: any) {
+        console.error('Get user posts error:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch user posts' 
+        });
+    }
+});
+
 export default router;

@@ -3,6 +3,8 @@ import healthRoutes from './routes/health';
 import userRoutes from './routes/user';
 import authRoutes from './routes/auth';
 import prisma from './services/database';
+import postsRoutes from './routes/posts';
+
 
 const port=3000;
 const app=express();
@@ -12,6 +14,7 @@ app.use(express.json());
 // Public routes
 app.use('/health', healthRoutes);
 app.use('/auth', authRoutes);
+app.use('/posts', postsRoutes);
 
 // Protected routes
 app.use('/users', userRoutes);
