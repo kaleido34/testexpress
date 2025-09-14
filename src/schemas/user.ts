@@ -29,3 +29,11 @@ export const loginSchema = {
         password: z.string().min(1, "Password is required")
     })
 };
+
+// Update profile schema (NEW)
+export const updateProfileSchema = {
+    body: z.object({
+        name: nameSchema.optional(),
+        age: ageSchema
+    })
+};

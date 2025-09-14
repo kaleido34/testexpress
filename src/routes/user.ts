@@ -3,6 +3,7 @@ import { validate } from "../middlewares/validate";
 import prisma from "../services/database";
 import { authenticateToken } from "../middlewares/auth";
 import { getUserSchema } from "../schemas/user";
+import { updateProfileSchema } from "../schemas/user";
 import { uploadAvatar } from '../middlewares/upload';
 import path from 'path';
 import fs from 'fs';
@@ -38,6 +39,111 @@ router.get("/me", authenticateToken, async (req: Request, res: Response) => {
         console.error('Get current user error:', error);
         return res.status(500).json({
             error: 'Failed to fetch current user'
+        });
+    }
+});
+
+// DELETE /users/me - Delete own account (protected)
+router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.userId;
+
+        // Check if user exists
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { 
+                id: true, 
+                name: true, 
+                email: true,
+                avatar: true
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                error: 'User not found'
+            });
+        }
+
+        // Count posts separately
+        const postCount = await prisma.post.count({
+            where: { authorId: userId }
+        });
+
+        // Delete user's avatar file if exists
+        if (user.avatar) {
+            const avatarPath = path.join('uploads', 'avatars', user.avatar);
+            if (fs.existsSync(avatarPath)) {
+                fs.unlinkSync(avatarPath);
+                console.log(`Deleted avatar: ${user.avatar}`);
+            }
+        }
+
+        // Delete user (posts will be cascade deleted due to onDelete: Cascade)
+        await prisma.user.delete({
+            where: { id: userId }
+        });
+
+        res.json({
+            message: 'Account deleted successfully',
+            deletedUser: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                postsDeleted: postCount
+            }
+        });
+    } catch (error: any) {
+        console.error('Delete user error:', error);
+        res.status(500).json({
+            error: 'Failed to delete account'
+        });
+    }
+});
+
+// PUT /users/me - Update own profile (protected)
+router.put('/me', authenticateToken, validate(updateProfileSchema), async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.userId;
+        const { name, age } = req.body;
+
+        // Check if user exists
+        const existingUser = await prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!existingUser) {
+            return res.status(404).json({
+                error: 'User not found'
+            });
+        }
+
+        // Update user (Zod already validated the input!)
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                name: name || existingUser.name,  // Keep existing if not provided
+                age: age !== undefined ? age : existingUser.age
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                age: true,
+                isEmailVerified: true,
+                avatar: true,
+                updatedAt: true
+            }
+        });
+
+        res.json({
+            message: 'Profile updated successfully',
+            user: updatedUser
+        });
+    } catch (error: any) {
+        console.error('Update profile error:', error);
+        res.status(500).json({
+            error: 'Failed to update profile'
         });
     }
 });
